@@ -12,6 +12,9 @@
             <layout>default</layout>
         </repository>
     </distributionManagement>
+    <properties>
+        <java.version>11</java.version>
+    </properties>
 
     <groupId>groupId</groupId>
     <artifactId>load-testing</artifactId>
