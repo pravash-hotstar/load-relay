@@ -6,6 +6,7 @@ import java.time.Duration;
 import com.launchdarkly.sdk.server.Components;
 import com.launchdarkly.sdk.server.LDClient;
 import com.launchdarkly.sdk.server.LDConfig;
+import com.launchdarkly.sdk.server.integrations.DynamoDb;
 import lombok.AllArgsConstructor;
 import lombok.NoArgsConstructor;
 import org.apache.http.client.utils.URIBuilder;
@@ -13,6 +14,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.regions.Region;
 
 @Configuration
 @AllArgsConstructor
@@ -24,17 +28,29 @@ public class LaunchDarklyConfiguration {
 	@Value("${launchdarkly.relay.url}")
 	private String remoteUrl;
 
+	@Value("${launch.darkly.relay.ddb.aws.accessKey}")
+	private String accessKey;
+
+	@Value("${launch.darkly.relay.ddb.aws.secretKey}")
+	private String secretKey;
+
+	@Value("${launch.darkly.relay.ddb.name}")
+	private String table;
+
+	@Value("${launch.darkly.relay.ddb.aws.region}")
+	private String region;
+
 	Environment env;
 
 	private LDConfig getLdConfig() throws URISyntaxException {
-		URIBuilder uriBuilder = new URIBuilder(remoteUrl);
-		return new LDConfig.Builder()
-				.dataSource(
-						Components.streamingDataSource()
-								.baseURI(uriBuilder.build())
-								.initialReconnectDelay(Duration.ofMillis(10)))
-				.events(Components.sendEvents().flushInterval(Duration.ofSeconds(10)))
-				.build();
+		AwsBasicCredentials awsBasicCredentials = AwsBasicCredentials.create(accessKey,secretKey);
+		LDConfig config = new LDConfig.Builder()
+				.dataStore(Components.persistentDataStore(DynamoDb.dataStore(table)
+						.credentials(StaticCredentialsProvider
+								.create(awsBasicCredentials))
+						.region(Region.of(region))
+				).cacheTime(Duration.ofMillis(1))).build();
+		return config;
 	}
 
 	@Bean public LDClient getLdClient() throws URISyntaxException { return new LDClient(sdkKey, getLdConfig()); }
